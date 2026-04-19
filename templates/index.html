@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hỗ trợ chẩn đoán — Luật kết hợp</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <div class="badge">FP-Growth · Association rules</div>
+        <h1>Hỗ trợ chẩn đoán &amp; gợi ý điều trị</h1>
+        <p>
+          Ứng dụng minh họa khai thác dữ liệu: từ bộ dữ liệu triệu chứng và nhãn
+          y khoa, hệ thống khai thác tập phổ biến và luật kết hợp để gợi ý chẩn
+          đoán, mức độ nghiêm trọng và phương án điều trị tương ứng.
+        </p>
+      </header>
+
+      <section class="card">
+        <h2>Ngôn ngữ &amp; thư viện</h2>
+        <div class="tech">
+          <span>Python 3</span>
+          <span>Flask (web)</span>
+          <span>HTML / CSS</span>
+          <span>JavaScript (fetch API)</span>
+          <span>Pandas</span>
+          <span>mlxtend (FP-Growth, luật kết hợp)</span>
+        </div>
+        <div class="workflow" style="margin-top: 1rem">
+          <strong>Luồng xử lý (workflow)</strong>
+          <ol>
+            <li>Nạp file CSV (cùng cấu trúc với dataset của bạn).</li>
+            <li>
+              Mỗi bản ghi được chuyển thành một “giao dịch”: triệu chứng, chẩn
+              đoán, mức độ, phương án điều trị (có tiền tố để phân biệt loại
+              mục).
+            </li>
+            <li>
+              FP-Growth tìm tập mục phổ biến; sinh luật kết hợp với ngưỡng
+              support và confidence bạn chọn.
+            </li>
+            <li>
+              Bạn chọn triệu chứng hiện có → hệ thống khớp vế trái luật và xếp
+              hạng gợi ý chẩn đoán; kết hợp thêm gợi ý mức độ / điều trị (khi
+              luật khớp).
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>1. Huấn luyện mô hình</h2>
+        <label class="field" for="csvPath">Đường dẫn file CSV</label>
+        <input
+          type="text"
+          id="csvPath"
+          value="{{ default_csv }}"
+          autocomplete="off"
+        />
+
+        <div class="row">
+          <div class="slider-row">
+            <label for="minSup"
+              ><span>Ngưỡng support tối thiểu</span>
+              <span id="minSupVal">0.02</span></label
+            >
+            <input
+              type="range"
+              id="minSup"
+              min="0.005"
+              max="0.15"
+              step="0.005"
+              value="0.02"
+            />
+          </div>
+          <div class="slider-row">
+            <label for="minConf"
+              ><span>Ngưỡng confidence (luật)</span>
+              <span id="minConfVal">0.20</span></label
+            >
+            <input
+              type="range"
+              id="minConf"
+              min="0.1"
+              max="0.9"
+              step="0.05"
+              value="0.2"
+            />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn btn-primary" id="btnTrain">
+            Huấn luyện / tải luật
+          </button>
+        </div>
+        <div id="trainStatus" class="status info" style="display: none"></div>
+      </section>
+
+      <section class="card">
+        <h2>2. Chọn triệu chứng</h2>
+        {% if symptoms %}
+        <div class="symptom-grid" id="symptomGrid">
+          {% for s in symptoms %}
+          <label class="chip"
+            ><input type="checkbox" name="symptom" value="{{ s }}" />
+            <span>{{ s }}</span></label
+          >
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty">
+          Không đọc được danh sách triệu chứng từ CSV mặc định. Kiểm tra đường
+          dẫn dataset.
+        </p>
+        {% endif %}
+        <div class="actions">
+          <button
+            type="button"
+            class="btn btn-primary"
+            id="btnPredict"
+            disabled
+          >
+            Gợi ý chẩn đoán &amp; điều trị
+          </button>
+          <button type="button" class="btn btn-ghost" id="btnClear">
+            Bỏ chọn
+          </button>
+        </div>
+        <div id="predictStatus" class="status err" style="display: none"></div>
+      </section>
+
+      <section class="card results" id="results" style="display: none">
+        <h2>Kết quả gợi ý</h2>
+        <div class="result-block">
+          <h3><span class="pill">Chẩn đoán</span></h3>
+          <div id="outDx"></div>
+        </div>
+        <div class="result-block">
+          <h3><span class="pill">Mức độ (Severity)</span></h3>
+          <div id="outSev"></div>
+        </div>
+        <div class="result-block">
+          <h3><span class="pill">Phương án điều trị</span></h3>
+          <div id="outTx"></div>
+        </div>
+      </section>
+
+      <footer class="note">
+        Công cụ chỉ mang tính học tập / minh họa thuật toán, không thay thế ý
+        kiến bác sĩ hay chẩn đoán lâm sàng.
+      </footer>
+    </div>
+
+    <script>
+      const minSup = document.getElementById("minSup");
+      const minConf = document.getElementById("minConf");
+      const minSupVal = document.getElementById("minSupVal");
+      const minConfVal = document.getElementById("minConfVal");
+      minSup.addEventListener("input", () => {
+        minSupVal.textContent = parseFloat(minSup.value).toFixed(3);
+      });
+      minConf.addEventListener("input", () => {
+        minConfVal.textContent = parseFloat(minConf.value).toFixed(2);
+      });
+
+      const trainStatus = document.getElementById("trainStatus");
+      const predictStatus = document.getElementById("predictStatus");
+      const btnPredict = document.getElementById("btnPredict");
+      const results = document.getElementById("results");
+
+      document
+        .getElementById("btnTrain")
+        .addEventListener("click", async () => {
+          trainStatus.style.display = "block";
+          trainStatus.className = "status info";
+          trainStatus.textContent = "Đang xử lý…";
+          try {
+            const r = await fetch("/api/train", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                csv_path: document.getElementById("csvPath").value,
+                min_support: parseFloat(minSup.value),
+                min_confidence: parseFloat(minConf.value),
+              }),
+            });
+            const data = await r.json();
+            if (!data.ok) throw new Error(data.error || "Lỗi huấn luyện");
+            trainStatus.className = "status ok";
+            trainStatus.textContent =
+              `Đã nạp ${data.n_transactions} giao dịch · ${data.n_itemsets} tập phổ biến · ` +
+              `luật: chẩn đoán ${data.n_rules_dx}, mức độ ${data.n_rules_sev}, điều trị ${data.n_rules_tx}.`;
+            btnPredict.disabled = false;
+          } catch (e) {
+            trainStatus.className = "status err";
+            trainStatus.textContent = e.message || String(e);
+            btnPredict.disabled = true;
+          }
+        });
+
+      function selectedSymptoms() {
+        return Array.from(
+          document.querySelectorAll('input[name="symptom"]:checked'),
+        ).map((x) => x.value);
+      }
+
+      function renderList(container, items, emptyMsg) {
+        if (!items || !items.length) {
+          container.innerHTML = `<p class="empty">${emptyMsg}</p>`;
+          return;
+        }
+        container.innerHTML = items
+          .map((it) => {
+            const pct = Math.min(100, Math.round(it.confidence * 100));
+            return `<div class="item">
+              <div><strong>${escapeHtml(it.label)}</strong>
+                <div class="bar"><i style="width:${pct}%"></i></div>
+              </div>
+              <div class="metrics">confidence ${it.confidence.toFixed(3)}<br/>lift ${it.lift.toFixed(3)}</div>
+            </div>`;
+          })
+          .join("");
+      }
+
+      function escapeHtml(s) {
+        const d = document.createElement("div");
+        d.textContent = s;
+        return d.innerHTML;
+      }
+
+      document
+        .getElementById("btnPredict")
+        .addEventListener("click", async () => {
+          predictStatus.style.display = "none";
+          const syms = selectedSymptoms();
+          if (!syms.length) {
+            predictStatus.style.display = "block";
+            predictStatus.textContent = "Hãy chọn ít nhất một triệu chứng.";
+            return;
+          }
+          try {
+            const r = await fetch("/api/predict", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ symptoms: syms }),
+            });
+            const data = await r.json();
+            if (!data.ok) throw new Error(data.error || "Lỗi gợi ý");
+            results.style.display = "block";
+            renderList(
+              document.getElementById("outDx"),
+              data.diagnoses,
+              "Không có luật chẩn đoán khớp — thử giảm ngưỡng hoặc đổi tập triệu chứng.",
+            );
+            renderList(
+              document.getElementById("outSev"),
+              data.severities,
+              "Không có luật gợi ý mức độ từ tập triệu chứng / chẩn đoán hàng đầu.",
+            );
+            renderList(
+              document.getElementById("outTx"),
+              data.treatments,
+              "Không có luật gợi ý điều trị từ tập triệu chứng / chẩn đoán hàng đầu.",
+            );
+          } catch (e) {
+            predictStatus.style.display = "block";
+            predictStatus.textContent = e.message || String(e);
+          }
+        });
+
+      document.getElementById("btnClear").addEventListener("click", () => {
+        document
+          .querySelectorAll('input[name="symptom"]')
+          .forEach((x) => (x.checked = false));
+      });
+    </script>
+  </body>
+</html>
