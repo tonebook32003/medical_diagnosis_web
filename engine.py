@@ -1,10 +1,11 @@
 """
 FP-Growth + luật kết hợp: triệu chứng → chẩn đoán; gợi ý mức độ & điều trị từ cùng mô hình giao dịch.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Dict, Iterable, List, Sequence, TextIO, Tuple
 
 import pandas as pd
 from mlxtend.frequent_patterns import association_rules, fpgrowth
@@ -17,10 +18,12 @@ PREFIX_T = "T__"
 
 
 def _default_csv_path() -> Path:
-    return Path(__file__).resolve().parents[1] / "Kaggle_DataSet" / "disease_diagnosis.csv"
+    return (
+        Path(__file__).resolve().parents[1] / "Kaggle_DataSet" / "disease_diagnosis.csv"
+    )
 
 
-def load_dataset(csv_path: Path | None = None) -> pd.DataFrame:
+def load_dataset(csv_path: Path | str | TextIO | None = None) -> pd.DataFrame:
     path = csv_path or _default_csv_path()
     df = pd.read_csv(path)
     required = [
@@ -31,13 +34,17 @@ def load_dataset(csv_path: Path | None = None) -> pd.DataFrame:
         "Severity",
         "Treatment_Plan",
     ]
+    # Thuật toán hiện tại mới chỉ xử lý cho file Disease Diagnosis Dataset chưa hỗ trợ cho file khác
     for c in required:
         if c not in df.columns:
+            # Cho nên là khi sử dụng file khác cấu trúc thì sẽ báo lỗi ở chỗ này
             raise ValueError(f"Thiếu cột {c} trong {path}")
     return df
 
 
-def transactions_from_df(df: pd.DataFrame) -> Tuple[List[List[str]], Dict[str, List[str]]]:
+def transactions_from_df(
+    df: pd.DataFrame,
+) -> Tuple[List[List[str]], Dict[str, List[str]]]:
     """Mỗi dòng → giao dịch có tiền tố để tránh trùng ý nghĩa giữa các loại mục."""
     sym_cols = ["Symptom_1", "Symptom_2", "Symptom_3"]
     txs: List[List[str]] = []
@@ -56,10 +63,18 @@ def transactions_from_df(df: pd.DataFrame) -> Tuple[List[List[str]], Dict[str, L
                 uniq.append(x)
         txs.append(uniq)
 
-    symptoms = sorted({x[len(PREFIX_S) :] for t in txs for x in t if x.startswith(PREFIX_S)})
-    diagnoses = sorted({x[len(PREFIX_D) :] for t in txs for x in t if x.startswith(PREFIX_D)})
-    severities = sorted({x[len(PREFIX_V) :] for t in txs for x in t if x.startswith(PREFIX_V)})
-    treatments = sorted({x[len(PREFIX_T) :] for t in txs for x in t if x.startswith(PREFIX_T)})
+    symptoms = sorted(
+        {x[len(PREFIX_S) :] for t in txs for x in t if x.startswith(PREFIX_S)}
+    )
+    diagnoses = sorted(
+        {x[len(PREFIX_D) :] for t in txs for x in t if x.startswith(PREFIX_D)}
+    )
+    severities = sorted(
+        {x[len(PREFIX_V) :] for t in txs for x in t if x.startswith(PREFIX_V)}
+    )
+    treatments = sorted(
+        {x[len(PREFIX_T) :] for t in txs for x in t if x.startswith(PREFIX_T)}
+    )
     meta = {
         "symptoms": symptoms,
         "diagnoses": diagnoses,
@@ -78,7 +93,9 @@ def mine_rules(
     te_arr = te.fit(transactions).transform(transactions)
     ohe = pd.DataFrame(te_arr, columns=te.columns_)
     itemsets = fpgrowth(ohe, min_support=min_support, use_colnames=True)
-    rules = association_rules(itemsets, metric="confidence", min_threshold=min_confidence)
+    rules = association_rules(
+        itemsets, metric="confidence", min_threshold=min_confidence
+    )
     rules = rules.sort_values(["confidence", "lift"], ascending=[False, False])
     return itemsets, rules
 
@@ -96,7 +113,9 @@ def filter_rules_consequent(rules: pd.DataFrame, prefix: str) -> pd.DataFrame:
 
 
 def user_symptom_items(user_symptoms: Iterable[str]) -> frozenset:
-    return frozenset(PREFIX_S + s.strip() for s in user_symptoms if s and str(s).strip())
+    return frozenset(
+        PREFIX_S + s.strip() for s in user_symptoms if s and str(s).strip()
+    )
 
 
 def predict_diagnoses(

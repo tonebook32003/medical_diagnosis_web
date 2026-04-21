@@ -107,6 +107,47 @@ input[type="text"]:focus {
   border-color: var(--accent);
 }
 
+.file-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+#csvFile {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.file-btn {
+  flex-shrink: 0;
+}
+
+#csvFile:focus-visible + .file-btn {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.file-name {
+  min-width: 0;
+  color: #475569;
+  font-size: 0.86rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -116,6 +157,15 @@ input[type="text"]:focus {
 @media (max-width: 640px) {
   .row {
     grid-template-columns: 1fr;
+  }
+
+  .file-picker {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .file-name {
+    white-space: normal;
   }
 }
 

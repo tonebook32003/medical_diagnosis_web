@@ -68,8 +68,13 @@ def index():
 @app.post("/api/train")
 def api_train():
     global _STATE
-    data = request.get_json(silent=True) or {}
-    csv_path = Path(data.get("csv_path") or _default_csv())
+    csv_file = request.files.get("csv_file")
+    if csv_file:
+        data = request.form
+        csv_path = None
+    else:
+        data = request.get_json(silent=True) or {}
+        csv_path = Path(data.get("csv_path") or _default_csv())
     try:
         min_sup = float(data.get("min_support", 0.02))
         min_conf = float(data.get("min_confidence", 0.2))
@@ -78,7 +83,13 @@ def api_train():
 
     _STATE["error"] = None
     try:
-        df = load_dataset(csv_path)
+        if csv_file:
+            df = load_dataset(csv_file.stream)
+            csv_source = csv_file.filename or "uploaded.csv"
+        else:
+            assert csv_path is not None
+            df = load_dataset(csv_path)
+            csv_source = str(csv_path.resolve())
         txs, meta = transactions_from_df(df)
         itemsets, rules = mine_rules(txs, min_support=min_sup, min_confidence=min_conf)
 
@@ -97,7 +108,7 @@ def api_train():
             n_rules_dx=len(rules_dx),
             n_rules_sev=len(rules_sev),
             n_rules_tx=len(rules_tx),
-            csv_path=str(csv_path.resolve()),
+            csv_path=csv_source,
             min_support=min_sup,
             min_confidence=min_conf,
             error=None,
